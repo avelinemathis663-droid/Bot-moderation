@@ -1,1 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Modération TikTok</title>
 
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #080808;
+  color: white;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+
+h1 {
+  text-align: center;
+  color: #00f2ea;
+}
+
+.box {
+  background: #151515;
+  padding: 20px;
+  border-radius: 15px;
+  margin-top: 20px;
+}
+
+input,
+textarea,
+button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+input,
+textarea {
+  background: #252525;
+  color: white;
+}
+
+button {
+  background: #ff0050;
+  color: white;
+  font-weight: bold;
+}
+
+#result {
+  text-align: center;
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 12px;
+  background: #202020;
+}
+
+.ok {
+  color: #00ff88;
+}
+
+.warning {
+  color: orange;
+}
+
+.ban {
+  color: #ff3333;
+}
+
+.user {
+  background: #202020;
+  padding: 12px;
+  margin-top: 8px;
+  border-radius: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🛡️ BOT MODÉRATION</h1>
+
+<div class="box">
+
+<input id="pseudo" placeholder="@Pseudo">
+
+<textarea id="message"
+placeholder="Écris le commentaire ici..."></textarea>
+
+<button onclick="analyser()">
+🔎 ANALYSER
+</button>
+
+<div id="result">
+En attente d'un commentaire...
+</div>
+
+</div>
+
+<div class="box">
+
+<h2>📋 Panneau</h2>
+
+<div id="liste"></div>
+
+<button onclick="resetBot()">
+🗑️ Réinitialiser
+</button>
+
+</div>
+
+</div>
+
+<script>
+
+let utilisateurs =
+JSON.parse(localStorage.getItem("avertissements")) || {};
+
+const insultes = [
+"connard",
+"connasse",
+"abruti",
+"abrutie",
+"idiot",
+"idiote",
+"débile",
+"debile",
+"pute",
+"salope",
+"fdp",
+"ntm",
+"tg",
+"ta gueule",
+"ferme ta gueule"
+];
+
+const famille = [
+"ta mère",
+"ta mere",
+"ta maman",
+"ton père",
+"ton pere",
+"ton papa",
+"ton frère",
+"ton frere",
+"ta sœur",
+"ta soeur"
+];
+
+function normaliser(texte) {
+
+return texte
+.toLowerCase()
+.normalize("NFD")
+.replace(/[\u0300-\u036f]/g, "");
+
+}
+
+function analyser() {
+
+const pseudo =
+document.getElementById("pseudo").value.trim();
+
+const message =
+document.getElementById("message").value.trim();
+
+if (!pseudo || !message) {
+
+alert("Écris un pseudo et un commentaire.");
+return;
+
+}
+
+const texte = normaliser(message);
+
+let raisons = [];
+
+for (let mot of insultes) {
+
+if (texte.includes(normaliser(mot))) {
+raisons.push("insulte");
+break;
+}
+
+}
+
+for (let mot of famille) {
+
+if (texte.includes(normaliser(mot))) {
+raisons.push("attaque familiale");
+break;
+}
+
+}
+
+let mots = texte.split(/\s+/);
+
+let repetitions = {};
+
+for (let mot of mots) {
+
+if (mot.length > 1) {
+
+repetitions[mot] =
+(repetitions[mot] || 0) + 1;
+
+}
+
+}
+
+for (let mot in repetitions) {
+
+if (repetitions[mot] >= 4) {
+
+raisons.push("spam / flood");
+break;
+
+}
+
+}
+
+raisons = [...new Set(raisons)];
+
+if (raisons.length === 0) {
+
+document.getElementById("result").innerHTML =
+"<span class='ok'>✅ Aucun problème détecté</span>";
+
+return;
+
+}
+
+if (!utilisateurs[pseudo]) {
+
+utilisateurs[pseudo] = 0;
+
+}
+
+utilisateurs[pseudo]++;
+
+if (utilisateurs[pseudo] > 3) {
+
+utilisateurs[pseudo] = 3;
+
+}
+
+localStorage.setItem(
+"avertissements",
+JSON.stringify(utilisateurs)
+);
+
+afficherResultat(
+pseudo,
+utilisateurs[pseudo],
+raisons
+);
+
+afficherListe();
+
+}
+
+function afficherResultat(
+pseudo,
+niveau,
+raisons
+) {
+
+let result =
+document.getElementById("result");
+
+if (niveau === 1) {
+
+result.innerHTML =
+"<span class='warning'>" +
+"⚠️ 1/3 — AVERTISSEMENT" +
+"</span><br><br>" +
+pseudo +
+"<br>" +
+raisons.join(" + ");
+
+}
+
+else if (niveau === 2) {
+
+result.innerHTML =
+"<span class='warning'>" +
+"⚠️ 2/3 — DERNIER AVERTISSEMENT" +
+"</span><br><br>" +
+pseudo +
+"<br>" +
+raisons.join(" + ");
+
+}
+
+else {
+
+result.innerHTML =
+"<span class='ban'>" +
+"🔴 3/3 — SANCTION" +
+"</span><br><br>" +
+pseudo +
+"<br>" +
+raisons.join(" + ");
+
+}
+
+}
+
+function afficherListe() {
+
+const liste =
+document.getElementById("liste");
+
+liste.innerHTML = "";
+
+for (let pseudo in utilisateurs) {
+
+const div =
+document.createElement("div");
+
+div.className = "user";
+
+let niveau =
+utilisateurs[pseudo];
+
+let couleur =
+niveau >= 3 ? "ban" : "warning";
+
+div.innerHTML =
+"<b>" +
+pseudo +
+"</b><br>" +
+"<span class='" +
+couleur +
+"'>" +
+niveau +
+"/3 avertissements" +
+"</span>";
+
+liste.appendChild(div);
+
+}
+
+}
+
+function resetBot() {
+
+if (!confirm(
+"Réinitialiser tous les avertissements ?"
+)) {
+return;
+}
+
+utilisateurs = {};
+
+localStorage.removeItem("avertissements");
+
+afficherListe();
+
+document.getElementById("result").innerHTML =
+"En attente d'un commentaire...";
+
+}
+
+afficherListe();
+
+</script>
+
+</body>
+  </html>
